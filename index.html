@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小王子的星球 - 永恒的降临</title>
+    <!-- 导入外部依赖库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <!-- 引入外部样式表 -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- 按顺序引入分文件脚本 -->
+<script src="roseGameWeather.js" defer></script>
+<script src="roseGameFX.js" defer></script>
+<script src="roseGame2D.js" defer></script>
+<script src="foxWalk.js" defer></script>
+<script src="foxEffects.js" defer></script>  <!-- 必须在这 -->
+<script src="planet3D.js" defer></script>
+<script src="main.js" defer></script>
+</head>
+<body>
+
+    <!-- 顶部调试控制面板 -->
+#<!--    <div id="debug-panel">
+ #       <button id="debug-btn-head" class="debug-btn">调试：模拟拍头（触发3D降落）</button>
+      <button id="debug-btn-back" class="debug-btn">调试：模拟抚摸背部（触发2D转场）</button>
+       <button id="debug-btn-quote" class="debug-btn">调试：模拟拍头（触发语录）</button>
+           <button id="debug-btn-summon-fox" class="debug-btn" >调试：模拟手势靠近（触发小狐狸）</button>
+    </div>
+
+    <!-- 全局云朵过渡遮罩层（初始为消散开门状态 disperse） -->
+    <div id="cloud-overlay" class="disperse">
+        <div class="cloud-layer" id="cloud-1"></div>
+        <div class="cloud-layer" id="cloud-2"></div>
+        <div class="cloud-layer" id="cloud-3"></div>
+        <div class="cloud-layer" id="cloud-4"></div>
+        <div class="cloud-layer" id="cloud-5"></div>
+    </div>
+
+    <div id="canvas-container"></div>
+    <canvas id="meteor-canvas"></canvas>
+
+    <div class="quote-box" id="quote-box">
+        <p class="quote-text">“如果你爱上了这朵花，而她正身处某颗星星上。<br>那么，半夜看着天空就会觉得很甜蜜。所有的星星都像开满了花。”</p>
+    </div>
+
+    <!-- 上半部分语录浮层（无背景框） -->
+    <div class="quote-display" id="quoteDisplay">
+        <p id="randomQuoteText">“你在你的玫瑰花上耗费的时间，使得你的玫瑰花变得如此重要。”</p>
+        <small>✦ 小王子 ✦</small>
+    </div>
+
+    <!-- ======== 走向玫瑰游戏（转场后显示） ======== -->
+    <div id="rose-game-wrapper">
+        <div id="game-container">
+            <div id="game-world">
+                <canvas id="sky-canvas"></canvas>
+
+                <div class="weather-layer active" id="weather-default"></div>
+                <div class="weather-layer" id="weather-sunny"></div>
+                <div class="weather-layer" id="weather-stars"></div>
+                <div class="weather-layer" id="weather-thunder"></div>
+                <div class="weather-layer" id="weather-cloudy"></div>
+
+                <!-- 动态天气叠层 -->
+                <div class="sunny-rays"></div>
+                <canvas id="sunbeams-canvas"></canvas>
+                <div class="mist-layer"></div>
+                <canvas id="rain-canvas"></canvas>
+                <canvas id="star-field"></canvas>
+
+                <div id="thunder-flash"></div>
+
+                <!-- 角色 -->
+                <div id="character"></div>
+
+                <div class="item-layer" id="layer-stone"></div>
+                <div class="item-layer" id="layer-twig"></div>
+                <div class="item-layer" id="layer-shovel"></div>
+
+                <div id="rose-halo"></div>
+
+                <div class="item-layer" id="layer-rose"></div>
+
+                <canvas id="particle-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
