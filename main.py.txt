@@ -1,0 +1,174 @@
+from PIL import Image
+import requests
+import base64
+import time
+import serial
+from flask import Flask
+from flask_socketio import SocketIO
+from picamera2 import Picamera2
+
+#  Flask Socket.io 初始化
+app = Flask(__name__)
+
+socketio = SocketIO(app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    transports=['polling', 'websocket'],
+    ping_timeout=60,
+    ping_interval=25
+)
+
+# 串口连接 Pico 
+ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+time.sleep(1)
+print("Pico 串口已连接")
+
+#  百度 API 配置
+API_KEY = "cu2MmxRwYL8fxqmZTipFweKm"
+SECRET_KEY = "IzDrtogEh16M1S31ij2zo10gi3N5W5Fq"
+
+#  表情映射 
+emotion_to_pico = {
+    'happy': b"SUNNY\n",
+    'angry': b"RAIN\n",
+    'surprise': b"STARRY\n",
+    'sad': b"RAIN\n",
+    'neutral': b"NEUTRAL\n"
+}
+
+emotion_to_frontend = {
+    'happy': 'happy',
+    'surprise': 'surprise',
+    'sad': 'sad',
+    'neutral': 'neutral',
+    'angry': 'angry'
+}
+
+#  Socket.io 连接事件 
+@socketio.on('connect')
+def handle_connect():
+    print("客户端已连接")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("客户端已断开")
+
+@socketio.on('request_gesture_test')
+def handle_gesture_test():
+    print("前端请求手势测试")
+    socketio.emit('gesture', {'value': 'test', 'message': 'gesture test OK'})
+
+def get_access_token():
+    url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={API_KEY}&client_secret={SECRET_KEY}"
+    try:
+        res = requests.post(url)
+        return res.json().get("access_token")
+    except Exception as e:
+        print("获取百度 Access Token 失败:", e)
+        return None
+
+def detect_emotion(image_path, token):
+    if not token:
+        return "neutral"
+    url = f"https://aip.baidubce.com/rest/2.0/face/v3/detect?access_token={token}"
+    try:
+        with open(image_path, 'rb') as f:
+            img_base64 = base64.b64encode(f.read()).decode()
+        payload = {
+            "image": img_base64,
+            "image_type": "BASE64",
+            "face_field": "emotion",
+            "max_face_num": 1
+        }
+        res = requests.post(url, json=payload)
+        data = res.json()
+        if data.get("result") and data["result"].get("face_num", 0) > 0:
+            return data["result"]["face_list"][0]["emotion"]["type"]
+    except Exception as e:
+        print("人脸表情检测请求异常:", e)
+    return "neutral"
+
+#  监听 Pico 串口消息 
+def pico_listener():
+    while True:
+        if ser.in_waiting:
+            try:
+                line = ser.readline().decode().strip()
+                print("收到 Pico:", line)
+
+                if line == "ENTER_PLANET":
+                    print("拍头，发送 pat_head")
+                    socketio.emit('pat_head', {'data': 'tap'})
+
+                elif line == "TOUCH_BACK":
+                    print("背部触摸，发送 pat_back")
+                    socketio.emit('pat_back', {'data': 'back'})
+
+                elif line == "TOUCH_EAR":
+                    print("耳朵触摸，发送 touch_ear")
+                    socketio.emit('touch_ear', {'action': 'twinkle'})
+
+                elif line == "SUMMON_FOX":
+                    print("召唤狐狸")
+                    socketio.emit('summon_fox', {})
+
+                elif line.startswith("GESTURE_"):
+                    gesture = line.replace("GESTURE_", "").lower()
+                    print("手势:", gesture)
+                    socketio.emit('gesture', {'value': gesture})
+
+            except Exception as e:
+                print("解析错误:", e)
+        time.sleep(0.05)
+
+#  情绪检测线程
+def emotion_loop():
+    picam2 = Picamera2()
+    picam2.configure(picam2.create_preview_configuration(main={"size": (320, 240)}))
+    picam2.start()
+    time.sleep(1)
+
+    token = get_access_token()
+    print("开始检测情绪...")
+    last = None
+
+    while True:
+        try:
+            frame = picam2.capture_array()
+            # 使用 PIL 保存图片，RGBA 转 RGB
+            Image.fromarray(frame).convert('RGB').save("/tmp/face.jpg")
+            emotion = detect_emotion("/tmp/face.jpg", token)
+
+            if emotion != last:
+                print("情绪:", emotion)
+
+                pico_cmd = emotion_to_pico.get(emotion, b"NEUTRAL\n")
+                ser.write(pico_cmd)
+                print("  -> 发送给Pico:", pico_cmd)
+
+                frontend_cmd = emotion_to_frontend.get(emotion, 'neutral')
+                socketio.emit('emotion', {'value': frontend_cmd})
+                print("  -> 发送给前端:", frontend_cmd)
+
+                last = emotion
+        except Exception as e:
+            print("情绪循环异常:", e)
+
+        time.sleep(2)
+
+if __name__ == '__main__':
+    print("\n" + "="*50)
+    print("树莓派后端启动")
+    print("="*50)
+
+    print("启动情绪检测线程...")
+    socketio.start_background_task(target=emotion_loop)
+
+    print("启动 Pico 串口监听线程...")
+    socketio.start_background_task(target=pico_listener)
+
+    print("Socket.io 服务启动，端口 5000")
+    print("树莓派 IP: 10.121.236.236")
+    print("="*50 + "\n")
+
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)

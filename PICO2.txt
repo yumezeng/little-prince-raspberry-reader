@@ -1,0 +1,314 @@
+from machine import Pin, UART, I2C
+import neopixel
+import time
+import random
+import mpr121
+
+# ========== 配置 ==========
+NUM_LEDS = 30
+MAX_BRIGHT = 10
+STANDBY_BRIGHT = 3
+LED_PIN = 16
+
+np = neopixel.NeoPixel(Pin(LED_PIN), NUM_LEDS)
+uart = UART(0, baudrate=115200, tx=Pin(0), rx=Pin(1))
+
+# ========== MPR121 触摸 ==========
+i2c0 = I2C(0, sda=Pin(4), scl=Pin(5), freq=400000)
+mpr = mpr121.MPR121(i2c0)
+
+# ========== APDS-9960 手势/接近 ==========
+i2c1 = I2C(1, sda=Pin(6), scl=Pin(7), freq=100000)
+APDS_ADDR = 0x39
+
+# ========== 状态 ==========
+fox_summoned = False
+gesture_enabled = False
+last_touch_time = 0
+
+# ========== 灯带 ==========
+def set_all(r, g, b, bright=MAX_BRIGHT):
+    r = r * bright // 255
+    g = g * bright // 255
+    b = b * bright // 255
+    for i in range(NUM_LEDS):
+        np[i] = (r, g, b)
+    np.write()
+
+def white_standby():
+    """待机白灯"""
+    set_all(STANDBY_BRIGHT, STANDBY_BRIGHT, STANDBY_BRIGHT)
+
+def off():
+    set_all(0, 0, 0, 0)
+
+# ========== 表情灯效 ==========
+def sunny():
+    print("表情: 开心 -> 橙色")
+    set_all(255, 120, 0)
+    time.sleep(1.5)
+    white_standby()
+
+def rainy():
+    print("表情: 伤心 -> 蓝色")
+    set_all(0, 0, 255)
+    time.sleep(1.5)
+    white_standby()
+
+def starry():
+    print("表情: 惊讶 -> 闪烁")
+    for _ in range(6):
+        off()
+        for _ in range(3):
+            i = random.randint(0, NUM_LEDS-1)
+            np[i] = (255, 220, 100)
+            np.write()
+            time.sleep(0.08)
+    white_standby()
+
+def neutral():
+    print("表情: 中性 -> 白色")
+    set_all(80, 80, 80)
+    time.sleep(1.5)
+    white_standby()
+
+# ========== 触摸灯效 ==========
+def heartbeat():
+    print("抚摸背部 -> 心跳")
+    for _ in range(2):
+        for i in range(12, 18):
+            np[i] = (255, 80, 0)
+        np.write()
+        time.sleep(0.15)
+        off()
+        time.sleep(0.15)
+    white_standby()
+
+def twinkle():
+    print("捏耳朵 -> 闪烁")
+    for _ in range(6):
+        i = random.randint(0, NUM_LEDS-1)
+        np[i] = (255, 200, 80)
+        np.write()
+        time.sleep(0.1)
+    white_standby()
+
+def enter_planet():
+    print("拍头 -> 进入星球")
+    for b in range(0, MAX_BRIGHT, 3):
+        set_all(255, 100, 0, b)
+        time.sleep(0.02)
+    time.sleep(0.3)
+    white_standby()
+
+def summon_fox_light():
+    print("召唤狐狸")
+    for _ in range(3):
+        set_all(255, 200, 0)
+        time.sleep(0.1)
+        off()
+        time.sleep(0.1)
+    white_standby()
+
+# ========== 接近检测 ==========
+def init_proximity():
+    try:
+        i2c1.writeto_mem(APDS_ADDR, 0x8F, b'\x01')
+        time.sleep(0.05)
+        i2c1.writeto_mem(APDS_ADDR, 0x80, b'\x01')
+        time.sleep(0.01)
+        i2c1.writeto_mem(APDS_ADDR, 0x8E, b'\x8F')
+        i2c1.writeto_mem(APDS_ADDR, 0x80, b'\x05')
+        time.sleep(0.05)
+        print("接近模式初始化完成")
+        return True
+    except Exception as e:
+        print("接近初始化失败:", e)
+        return False
+
+def read_proximity():
+    try:
+        return i2c1.readfrom_mem(APDS_ADDR, 0x9C, 1)[0]
+    except:
+        return 0
+
+# ========== 手势识别 ==========
+def init_gesture():
+    try:
+        i2c1.writeto_mem(APDS_ADDR, 0x8F, b'\x01')
+        time.sleep(0.1)
+        i2c1.writeto_mem(APDS_ADDR, 0x80, b'\x01')
+        time.sleep(0.01)
+        i2c1.writeto_mem(APDS_ADDR, 0x8E, b'\x8F')
+        i2c1.writeto_mem(APDS_ADDR, 0x81, b'\xFF')
+        i2c1.writeto_mem(APDS_ADDR, 0x83, b'\xFF')
+        i2c1.writeto_mem(APDS_ADDR, 0xA2, b'\x41')
+        i2c1.writeto_mem(APDS_ADDR, 0xA3, b'\x03')
+        i2c1.writeto_mem(APDS_ADDR, 0xA4, b'\x00')
+        i2c1.writeto_mem(APDS_ADDR, 0xA6, b'\x89')
+        i2c1.writeto_mem(APDS_ADDR, 0xAB, b'\x01')
+        i2c1.writeto_mem(APDS_ADDR, 0x80, b'\x4D')
+        time.sleep(0.05)
+        print("手势识别初始化完成")
+        return True
+    except Exception as e:
+        print("手势初始化失败:", e)
+        return False
+
+def read_fifo():
+    try:
+        level = i2c1.readfrom_mem(APDS_ADDR, 0xAE, 1)[0]
+        if level == 0:
+            return None
+        data = i2c1.readfrom_mem(APDS_ADDR, 0xFC, min(level*4, 64))
+        fifo = []
+        for i in range(0, len(data)-3, 4):
+            fifo.append(tuple(data[i:i+4]))
+        return fifo
+    except:
+        return None
+
+def detect_gesture(fifo):
+    if not fifo:
+        return None
+
+    u = d = l = r = 0
+    c = 0
+
+    for u1, d1, l1, r1 in fifo:
+        if max(u1, d1, l1, r1) < 30:
+            continue
+        u += u1
+        d += d1
+        l += l1
+        r += r1
+        c += 1
+
+    if c == 0:
+        return None
+
+    u //= c
+    d //= c
+    l //= c
+    r //= c
+
+    if u > max(d, l, r) and u > 50:
+        return "UP"
+    if d > max(u, l, r) and d > 50:
+        return "DOWN"
+    if l > max(u, d, r) and l > 50:
+        return "LEFT"
+    if r > max(u, d, l) and r > 50:
+        return "RIGHT"
+
+    return None
+
+# ========== UART 接收指令 ==========
+def check_uart():
+    if uart.any():
+        try:
+            cmd = uart.readline().decode().strip()
+            if not cmd:
+                return
+            
+            print("收到指令:", cmd)
+            
+            if cmd == "SUNNY":
+                sunny()
+            elif cmd == "RAIN":
+                rainy()
+            elif cmd == "STARRY":
+                starry()
+            elif cmd == "NEUTRAL":
+                neutral()
+            elif cmd == "HEARTBEAT":
+                heartbeat()
+            elif cmd == "TWINKLE":
+                twinkle()
+            elif cmd == "ENTER_PLANET":
+                enter_planet()
+            elif cmd == "OFF":
+                off()
+        except Exception as e:
+            pass
+
+# ========== UART 发送消息 ==========
+def send_uart(msg):
+    try:
+        uart.write((msg + "\n").encode())
+        uart.flush()
+    except:
+        pass
+
+# ========== 初始化 ==========
+white_standby()
+print("Pico 启动完成")
+print("等待指令、触摸或手势...")
+
+prox_ok = init_proximity()
+
+# ========== 主循环 ==========
+last_gesture = None
+gesture_cooldown = 0
+last_prox = 0
+
+while True:
+    # 1. 接收树莓派指令（表情灯效）
+    check_uart()
+    
+    # 2. 接近检测（召唤狐狸）
+    if not fox_summoned and prox_ok:
+        prox = read_proximity()
+        
+        if prox > 100 and last_prox <= 100:
+            print("手靠近")
+        
+        if prox > 100:
+            print("检测到手靠近，召唤狐狸")
+            fox_summoned = True
+            summon_fox_light()
+            time.sleep(1.2)
+            gesture_enabled = init_gesture()
+            if gesture_enabled:
+                print("手势识别已启用")
+            send_uart("SUMMON_FOX")
+        
+        last_prox = prox
+    
+    # 3. 手势检测（召唤后才启用）
+    if fox_summoned and gesture_enabled and time.ticks_ms() > gesture_cooldown:
+        fifo = read_fifo()
+        g = detect_gesture(fifo)
+        
+        if g and g != last_gesture:
+            table = {
+                "UP": "GESTURE_UP",
+                "DOWN": "GESTURE_DOWN",
+                "LEFT": "GESTURE_LEFT",
+                "RIGHT": "GESTURE_RIGHT"
+            }
+            print("手势:", g)
+            send_uart(table[g])
+            last_gesture = g
+            gesture_cooldown = time.ticks_add(time.ticks_ms(), 400)
+        elif g is None:
+            last_gesture = None
+    
+    # 4. 触摸检测（拍头/拍背/捏耳朵）
+    current_time = time.ticks_ms()
+    if current_time - last_touch_time > 300:
+        for i in range(12):
+            if mpr.is_touched(i):
+                last_touch_time = current_time
+                if i == 0:
+                    heartbeat()
+                    send_uart("TOUCH_BACK")
+                elif i == 1:
+                    twinkle()
+                    send_uart("TOUCH_EAR")
+                elif i == 2:
+                    enter_planet()
+                    send_uart("ENTER_PLANET")
+                break
+    
+    time.sleep(0.03)

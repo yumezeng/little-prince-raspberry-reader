@@ -1,0 +1,115 @@
+"""
+MicroPython MPR121 capacitive touch sensor driver
+Supports up to 12 capacitive touch electrodes
+I2C address: 0x5A (default) or 0x5B (when ADD pin pulled high)
+"""
+
+class MPR121:
+    # Register addresses
+    TOUCH_STATUS = 0x00
+    TOUCH_STATUS_2 = 0x01
+    MHD_R = 0x2B
+    NHD_R = 0x2C
+    NCL_R = 0x2D
+    FDL_R = 0x2E
+    MHD_F = 0x2F
+    NHD_F = 0x30
+    NCL_F = 0x31
+    FDL_F = 0x32
+    ELE0_TOUCH_THRESHOLD = 0x41
+    ELE0_RELEASE_THRESHOLD = 0x42
+    ELE_MAX = 12
+    
+    def __init__(self, i2c, addr=0x5A):
+        """
+        Initialize MPR121 capacitive touch sensor
+        
+        Args:
+            i2c: I2C object
+            addr: I2C address (default 0x5A)
+        """
+        self.i2c = i2c
+        self.addr = addr
+        
+        # Reset the device
+        self._write8(0x80, 0x63)
+        
+        # Set touch and release thresholds for all electrodes
+        for i in range(self.ELE_MAX):
+            self._write8(self.ELE0_TOUCH_THRESHOLD + i*2, 12)    # Touch threshold
+            self._write8(self.ELE0_RELEASE_THRESHOLD + i*2, 6)   # Release threshold
+        
+        # Configure electrodes
+        self._write8(0x5E, 0x00)  # ELE_CFG: disable all first
+        self._write8(0x5E, 0x0C)  # ELE_CFG: enable all electrodes
+        self._write8(0x7B, 0x00)  # Auto-config
+        
+        # Read configuration registers to verify
+        self._config_after_reset()
+    
+    def _config_after_reset(self):
+        """Configure after reset"""
+        self._write8(0x7D, 0x00)  # MPR121_AFE_CFG
+        self._write8(0x4D, 0x0B)  # MPR121_FILTER_CFG
+    
+    def _write8(self, reg, value):
+        """Write 8-bit value to register"""
+        self.i2c.writeto_mem(self.addr, reg, bytes([value]))
+    
+    def _read8(self, reg):
+        """Read 8-bit value from register"""
+        return self.i2c.readfrom_mem(self.addr, reg, 1)[0]
+    
+    def is_touched(self, electrode):
+        """
+        Check if a specific electrode is touched
+        
+        Args:
+            electrode: Electrode number (0-11)
+            
+        Returns:
+            True if touched, False otherwise
+        """
+        if electrode < 0 or electrode >= self.ELE_MAX:
+            return False
+        
+        status = self._read8(self.TOUCH_STATUS)
+        return (status >> electrode) & 1
+    
+    def get_all_touched(self):
+        """
+        Get list of all currently touched electrodes
+        
+        Returns:
+            List of electrode numbers that are touched
+        """
+        status = self._read8(self.TOUCH_STATUS)
+        touched = []
+        for i in range(self.ELE_MAX):
+            if (status >> i) & 1:
+                touched.append(i)
+        return touched
+    
+    def get_touch_status(self):
+        """
+        Get raw touch status byte
+        
+        Returns:
+            8-bit status register value
+        """
+        return self._read8(self.TOUCH_STATUS)
+    
+    def set_thresholds(self, electrode, touch_thresh, release_thresh):
+        """
+        Set touch and release thresholds for a specific electrode
+        
+        Args:
+            electrode: Electrode number (0-11)
+            touch_thresh: Touch threshold (0-255, typical 12-20)
+            release_thresh: Release threshold (0-255, typical 6-12)
+        """
+        if electrode < 0 or electrode >= self.ELE_MAX:
+            return
+        
+        self._write8(self.ELE0_TOUCH_THRESHOLD + electrode*2, touch_thresh)
+        self._write8(self.ELE0_RELEASE_THRESHOLD + electrode*2, release_thresh)
