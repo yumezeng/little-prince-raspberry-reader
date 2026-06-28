@@ -19,3 +19,4 @@
 
 本项目由以下成员共同协作完成
 @yumezeng https://github.com/yumezeng
+@yanlandai https://github.com/yanlandai
