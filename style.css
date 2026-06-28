@@ -1,0 +1,654 @@
+﻿* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #020215;
+    font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Georgia, serif;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.quote-box {
+    position: absolute;
+    bottom: 8%;
+    width: 100%;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 2s ease;
+    z-index: 5;
+    pointer-events: none;
+}
+
+    .quote-box.show {
+        opacity: 0.85;
+        transform: translateY(0);
+    }
+
+.quote-text {
+    color: #fce7f3;
+    font-size: 1rem;
+    line-height: 1.8;
+    letter-spacing: 3px;
+    text-shadow: 0 0 8px rgba(253, 164, 186, 0.4);
+}
+
+/* 流星画布层 */
+#meteor-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 11;
+    pointer-events: none;
+}
+
+/* ======== 语录显示层（上半部分，无背景框） ======== */
+.quote-display {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 85%;
+    text-align: center;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+    .quote-display.show {
+        opacity: 1;
+    }
+
+    .quote-display p {
+        color: #fce7f3;
+        font-size: 1.1rem;
+        line-height: 1.8;
+        letter-spacing: 2px;
+        text-shadow: 0 0 12px rgba(253, 164, 186, 0.6);
+        margin: 0;
+        font-weight: 500;
+    }
+
+    .quote-display small {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        color: #ffd966;
+        letter-spacing: 3px;
+        opacity: 0.8;
+        text-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+
+/* 抬头望左样式 */
+#character.looking-up {
+    background-size: 75% auto;
+    background-position: center 70%;
+}
+
+/* ======== 走向玫瑰游戏 ======== */
+#rose-game-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 8;
+    display: none;
+}
+
+    #rose-game-wrapper.show {
+        display: block;
+    }
+
+#game-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+    #game-container::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        box-shadow: inset 0 0 120px rgba(0,0,0,0.35);
+        pointer-events: none;
+        z-index: 100;
+        transition: box-shadow 1.2s ease;
+    }
+
+.state-stars #game-container::after {
+    box-shadow: inset 0 0 150px rgba(0,0,20,0.5);
+}
+
+.state-thunder #game-container::after {
+    box-shadow: inset 0 0 180px rgba(0,0,0,0.55);
+}
+
+.state-cloudy #game-container::after {
+    box-shadow: inset 0 0 140px rgba(0,0,0,0.4);
+}
+
+#game-world {
+    height: 100vh;
+    width: calc(100vh * (21 / 9));
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: left bottom;
+    will-change: transform;
+    transition: filter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#game-world {
+    filter: none;
+}
+
+.state-sunny #game-world {
+    filter: saturate(1.2) brightness(1.05) contrast(1.1);
+}
+
+.state-stars #game-world {
+    filter: brightness(0.88) saturate(1.08) hue-rotate(-4deg);
+}
+
+.state-thunder #game-world {
+    filter: brightness(0.78) contrast(1.12) grayscale(0.12);
+}
+
+.state-cloudy #game-world {
+    filter: saturate(0.82) contrast(0.92) brightness(0.88);
+}
+
+#character {
+    height: 40vh;
+    width: calc(40vh * (1279 / 1706));
+    position: absolute;
+    left: 100px;
+    bottom: 0px;
+    z-index: 5;
+    transform-origin: 50% 100%;
+    transition: transform 0.1s ease-out;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+}
+
+/* 2D 流星画布的 z-index */
+#sky-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.item-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: left top;
+    pointer-events: none;
+    z-index: 10;
+}
+
+#layer-stone {
+    background-image: url('石头.png');
+}
+
+#layer-twig {
+    background-image: url('枝条.png');
+}
+
+#layer-shovel {
+    background-image: url('铲子.png');
+}
+
+#layer-rose {
+    background-image: url('玫瑰.png');
+    transition: filter 1.0s ease-out;
+}
+
+.rose-glowing {
+    filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.8)) drop-shadow(0 0 5px rgba(230, 0, 50, 0.5));
+}
+
+#rose-halo {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(255, 60, 40, 0.5) 0%, rgba(255, 215, 0, 0.15) 50%, rgba(255, 0, 0, 0) 70%);
+    border-radius: 50%;
+    transform: translate(-50%, 50%);
+    z-index: 9;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0.15;
+    transition: opacity 1.2s ease, transform 1.2s ease;
+    will-change: transform, opacity;
+}
+
+.halo-active {
+    opacity: 0.95 !important;
+    transform: translate(-50%, 50%) scale(1.6) !important;
+    animation: halo-breathing 3.0s infinite ease-in-out alternate;
+}
+
+@keyframes halo-breathing {
+    0% {
+        filter: blur(3px) brightness(1.0);
+    }
+
+    100% {
+        filter: blur(12px) brightness(1.4);
+    }
+}
+
+#particle-canvas {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    pointer-events: none;
+    z-index: 15;
+    transform: translate(-50%, 50%);
+}
+
+.weather-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: left top;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+    .weather-layer.active {
+        opacity: 1;
+    }
+
+#weather-default {
+    background-image: url('背景.png');
+}
+
+#weather-sunny {
+    background-image: url('晴天.png');
+}
+
+#weather-stars {
+    background-image: url('背景.png');
+}
+
+#weather-thunder {
+    background-image: url('背景.png');
+}
+
+#weather-sunny.active {
+    animation: sunny-glow 4s infinite ease-in-out alternate;
+}
+
+@keyframes sunny-glow {
+    0% {
+        filter: brightness(1.0) saturate(1.0);
+    }
+
+    100% {
+        filter: brightness(1.10) saturate(1.15);
+    }
+}
+
+#weather-stars.active {
+    animation: stars-twinkle 3s infinite ease-in-out alternate;
+}
+
+@keyframes stars-twinkle {
+    0% {
+        opacity: 0.75;
+        filter: brightness(0.85);
+    }
+
+    50% {
+        opacity: 0.95;
+        filter: brightness(0.95);
+    }
+
+    100% {
+        opacity: 0.8;
+        filter: brightness(0.9);
+    }
+}
+
+#thunder-flash {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 4;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.08s ease;
+}
+
+.state-thunder #thunder-flash {
+    animation: thunder-bolt 4.5s infinite;
+}
+
+@keyframes thunder-bolt {
+    0%, 97%, 100% {
+        opacity: 0;
+    }
+
+    1% {
+        opacity: 0.35;
+    }
+
+    2% {
+        opacity: 0.05;
+    }
+
+    3% {
+        opacity: 0.25;
+    }
+
+    4% {
+        opacity: 0;
+    }
+
+    60% {
+        opacity: 0;
+    }
+
+    61% {
+        opacity: 0.3;
+    }
+
+    62% {
+        opacity: 0;
+    }
+}
+
+/* 晴天：光束照在地面 */
+.sunny-rays {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: linear-gradient(168deg, rgba(255,255,220,0.30) 0%, transparent 42%), linear-gradient(185deg, rgba(255,255,220,0.28) 0%, transparent 42%), linear-gradient(152deg, rgba(255,255,220,0.18) 0%, transparent 38%), linear-gradient(198deg, rgba(255,255,220,0.18) 0%, transparent 38%), linear-gradient(140deg, rgba(255,255,220,0.10) 0%, transparent 35%), linear-gradient(208deg, rgba(255,255,220,0.10) 0%, transparent 35%), radial-gradient(ellipse 60% 30% at 50% 5%, rgba(255,255,230,0.35) 0%, transparent 50%);
+    transition: opacity 2s ease;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.state-sunny .sunny-rays {
+    opacity: 1;
+    animation: sunBeams 12s ease-in-out infinite alternate;
+}
+
+@keyframes sunBeams {
+    0% {
+        transform: scaleX(1) translateX(0);
+    }
+
+    100% {
+        transform: scaleX(1.15) translateX(-3%);
+    }
+}
+
+/* 多云：动态云团叠层 */
+.mist-layer {
+    position: absolute;
+    top: 0;
+    left: -20%;
+    right: -20%;
+    height: 85%;
+    opacity: 0;
+    background: radial-gradient(ellipse 50% 30% at 20% 25%, rgba(255,255,255,0.80) 0%, transparent 65%), radial-gradient(ellipse 45% 25% at 55% 20%, rgba(255,255,255,0.70) 0%, transparent 60%), radial-gradient(ellipse 55% 28% at 85% 30%, rgba(255,255,255,0.75) 0%, transparent 65%), radial-gradient(ellipse 35% 20% at 40% 40%, rgba(240,240,255,0.60) 0%, transparent 55%), radial-gradient(ellipse 40% 22% at 70% 38%, rgba(255,255,255,0.65) 0%, transparent 60%), radial-gradient(ellipse 30% 18% at 10% 40%, rgba(245,245,255,0.55) 0%, transparent 55%);
+    filter: blur(18px);
+    pointer-events: none;
+    z-index: 4;
+}
+
+.state-cloudy .mist-layer {
+    opacity: 1;
+    animation: cloudDrift 20s ease-in-out infinite alternate;
+}
+
+@keyframes cloudDrift {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        transform: translate(-10%, 3%);
+    }
+}
+
+/* 星星画布 */
+#star-field {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+}
+
+.state-stars #star-field {
+    opacity: 1;
+}
+
+/* 晴天光束画布 */
+#sunbeams-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 2s ease;
+}
+
+.state-sunny #sunbeams-canvas {
+    opacity: 1;
+}
+
+/* 下雨画布 */
+#rain-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+.state-rain #rain-canvas {
+    opacity: 1;
+}
+
+#weather-cloudy.active {
+    animation: none;
+}
+
+/* ======== 全局云层遮罩层样式 ======== */
+#cloud-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+    overflow: hidden;
+    background-color: transparent;
+    pointer-events: none;
+}
+
+.cloud-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    will-change: transform, opacity;
+    transition: transform 2.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.0s ease-out;
+    pointer-events: none;
+}
+
+#cloud-1 {
+    background-image: url('云1.png');
+    z-index: 115;
+}
+
+#cloud-2 {
+    background-image: url('云2.png');
+    z-index: 114;
+}
+
+#cloud-3 {
+    background-image: url('云3.png');
+    z-index: 113;
+}
+
+#cloud-4 {
+    background-image: url('云4.png');
+    z-index: 112;
+}
+
+#cloud-5 {
+    background-image: url('云5.png');
+    z-index: 111;
+}
+
+/* 云层飞出消散偏移量 */
+#cloud-overlay.disperse #cloud-1 {
+    transform: translateY(120%);
+    opacity: 0;
+}
+
+#cloud-overlay.disperse #cloud-2 {
+    transform: translate(120%, 120%);
+    opacity: 0;
+}
+
+#cloud-overlay.disperse #cloud-3 {
+    transform: translateY(120%);
+    opacity: 0;
+}
+
+#cloud-overlay.disperse #cloud-4 {
+    transform: translateY(-120%);
+    opacity: 0;
+}
+
+#cloud-overlay.disperse #cloud-5 {
+    transform: translateY(120%);
+    opacity: 0;
+}
+
+/* ================== 调试控制面板样式 ================== */
+#debug-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 12px;
+}
+
+.debug-btn {
+    background-color: #ff4d6d;
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 77, 109, 0.4);
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+    .debug-btn:hover {
+        background-color: #ff758f;
+        transform: scale(1.05);
+    }
+
+    .debug-btn:active {
+        transform: scale(0.95);
+    }
+/* ================== 狐狸出现动画 ================== */
+@keyframes foxAppear {
+    0% {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+/* ================== 爱心飘浮动画 ================== */
+.floating-heart {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    will-change: transform, opacity;
+}
+
+/* ================== 烟花绽放动画 ================== */
+.firework-effect {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    transform-origin: center;
+    will-change: width, height, opacity, transform;
+}
+
+.firework-rising {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    will-change: bottom, transform, opacity;
+}
